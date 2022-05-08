@@ -10,5 +10,19 @@ spring:
       ddl-auto: update
     show-sql: true
 
+  rabbitmq:
+    host: ec2-18-215-154-77.compute-1.amazonaws.com
+    port: 5672
+    username: user
+    password: password
+    listener:
+      simple:
+        retry:
+          enabled: true
+          initial-interval: 5000
+          max-attempts: 10
+          max-interval: 30000
+          multiplier: 3.0
+
 server:
-  port: 8082
+  port: 8080

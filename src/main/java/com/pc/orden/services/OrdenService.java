@@ -2,14 +2,15 @@ package com.pc.orden.services;
 
 import com.pc.orden.model.Orden;
 import com.pc.orden.model.OrdenDTO;
+import com.pc.orden.model.OrdenDTOFront;
 
 import java.util.List;
 
 public interface OrdenService {
 
-    List<Orden> listado() throws NegocioExcepcion;
+    List<Orden> listado() throws NegocioExcepcion, NotFoundException;
 
-    OrdenDTO ordenDTOPorId(Integer id) throws NegocioExcepcion;
+    OrdenDTO ordenDTOPorId(Integer id) throws NegocioExcepcion, NotFoundException;
 
-    Orden crearOrden(OrdenDTO ordenDTO) throws NegocioExcepcion;
+    void crearOrden(OrdenDTOFront ordenDTOFront) throws NegocioExcepcion, NotFoundException;
 }

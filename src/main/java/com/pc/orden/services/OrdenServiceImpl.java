@@ -1,17 +1,16 @@
 package com.pc.orden.services;
 
-import com.pc.orden.model.Orden;
-import com.pc.orden.model.OrdenDTO;
-import com.pc.orden.model.OrdenRepository;
+import com.pc.orden.model.*;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.amqp.core.AmqpTemplate;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @Slf4j
@@ -19,11 +18,15 @@ import java.util.List;
 public class OrdenServiceImpl implements OrdenService {
 
     private final OrdenRepository ordenRepository;
+    private final RestTemplate restTemplate;
+    private final AmqpTemplate queueSender;
 
     @Override
-    public List<Orden> listado() throws NegocioExcepcion {
+    public List<Orden> listado() throws NegocioExcepcion, NotFoundException {
         try {
-            return this.ordenRepository.findAll();
+            List<Orden> ordenes = this.ordenRepository.findAll();
+            if (ordenes.isEmpty()) throw new NotFoundException("La base de datos está vacía");
+            return ordenes;
         } catch (Exception e) {
             throw new NegocioExcepcion(e.getMessage());
         }
@@ -31,10 +34,10 @@ public class OrdenServiceImpl implements OrdenService {
 
     // Devuelve el producto ID y la cantidad
     @Override
-    public OrdenDTO ordenDTOPorId(Integer id) throws NegocioExcepcion {
+    public OrdenDTO ordenDTOPorId(Integer id) throws NegocioExcepcion, NotFoundException {
         try {
             Orden ordencita = this.ordenRepository.findById(id)
-                    .orElseThrow(() -> new NegocioExcepcion("No se encuentra la orden con id = " + id));
+                    .orElseThrow(() -> new NotFoundException("No se encuentra la orden con id = " + id));
             return OrdenDTO.builder()
                     .productoId(ordencita.getProductoId())
                     .cantidad(ordencita.getCantidad()).build();
@@ -44,13 +47,24 @@ public class OrdenServiceImpl implements OrdenService {
     }
 
     @Override
-    public Orden crearOrden(OrdenDTO ordenDTO) throws NegocioExcepcion {
+    public void crearOrden(OrdenDTOFront ordenDTOFront) throws NegocioExcepcion, NotFoundException {
         try {
-            return this.ordenRepository.save(Orden.builder()
+            ResponseEntity<ResponseProducto> responseProducto = this.restTemplate.getForEntity("" + ordenDTOFront.getProductoId() + "/" + ordenDTOFront.getCantidad(),
+                    ResponseProducto.class);
+            if (!responseProducto.getStatusCode().is2xxSuccessful())
+                throw new NegocioExcepcion("No se pudo completar la compra, no se conecta con productos");
+
+            if (!Objects.requireNonNull(responseProducto.getBody()).getStock())
+                throw new NotFoundException("No hay stock del producto");
+
+            Orden orden = this.ordenRepository.save(Orden.builder()
                     .fecha(new Date())
-                    .cantidad(ordenDTO.getCantidad())
-                    .productoId(ordenDTO.getProductoId())
-                    .total(ordenDTO.getCantidad() * 10D).build());
+                    .cantidad(ordenDTOFront.getCantidad())
+                    .productoId(ordenDTOFront.getProductoId())
+                    .total(ordenDTOFront.getCantidad() * responseProducto.getBody().getPrecio()).build());
+
+            this.queueSender.convertAndSend("rabbitQueue", orden.getId().toString());
+
         } catch (Exception e) {
             throw new NegocioExcepcion(e.getMessage());
         }
