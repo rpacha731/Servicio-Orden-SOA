@@ -49,7 +49,9 @@ public class OrdenServiceImpl implements OrdenService {
     @Override
     public void crearOrden(OrdenDTOFront ordenDTOFront) throws NegocioExcepcion, NotFoundException {
         try {
-            ResponseEntity<ResponseProducto> responseProducto = this.restTemplate.getForEntity("" + ordenDTOFront.getProductoId() + "/" + ordenDTOFront.getCantidad(),
+            log.warn(ordenDTOFront.toString());
+
+            ResponseEntity<ResponseProducto> responseProducto = this.restTemplate.getForEntity("http://ec2-18-215-154-77.compute-1.amazonaws.com:8081/productos/" + ordenDTOFront.getProductoId() + "/" + ordenDTOFront.getCantidad(),
                     ResponseProducto.class);
             if (!responseProducto.getStatusCode().is2xxSuccessful())
                 throw new NegocioExcepcion("No se pudo completar la compra, no se conecta con productos");
